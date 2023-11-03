@@ -1,0 +1,60 @@
+version: "3.9"
+
+networks:
+  proxy:
+    name: proxy
+    external: true
+
+volumes:
+  db:
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./src/:/app
+      - ./docker/config/tambahan.ini:/usr/local/etc/php/conf.d/tambahan.ini:ro
+      - ./docker/config/tambahan-fpm.ini:/usr/local/etc/php-fpm.d/tambahan.ini:ro
+    networks:
+      - proxy
+    depends_on:
+      - db
+
+  nginx:
+    image: nginx:stable
+    volumes:
+      - ./src/:/app
+      - ./docker/httpd/:/etc/nginx/conf.d/
+    networks:
+      - proxy
+    environment:
+      - VIRTUAL_HOST=${HOST}
+    depends_on:
+      - app
+    links:
+      - app
+
+  db:
+    image: mysql:8.1.0
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - proxy
+    env_file:
+      - .env
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    links:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    ports:
+      - '8081:80'
+    networks:
+      - proxy
